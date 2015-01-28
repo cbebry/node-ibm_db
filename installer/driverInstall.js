@@ -9,7 +9,7 @@ var os = require('os');
 var path = require('path');
 var exec = require('child_process').exec;
 
-var installerURL = 'https://public.dhe.ibm.com/ibmdl/export/pub/software/data/db2/drivers/odbc_cli/';
+var installerURL = 'http://public.dhe.ibm.com/ibmdl/export/pub/software/data/db2/drivers/odbc_cli/';
 var CURRENT_DIR = process.cwd();
 var DOWNLOAD_DIR = path.resolve(CURRENT_DIR, 'installer');
 var INSTALLER_FILE; 
@@ -89,13 +89,15 @@ var download_file_httpget = function(file_url) {
 			console.log('Unable to fetch driver download file. Exiting the install process.');
 			process.exit(0);
 		}
-
+		/*
 		var options = {
 		 host: url.parse(installerfileURL).host,
 		 port: 80,
 		 path: url.parse(installerfileURL).pathname
 		};
+		*/
 		
+		var options = buildHttpOptions(installerfileURL);
 		var license_agreement = '\n****************************************\nYou are downloading a package which includes the Node.js module for IBM DB2/Informix.  The module is licensed under the Apache License 2.0. The package also includes IBM ODBC and CLI Driver from IBM, which is automatically downloaded as the node module is installed on your system/device. The license agreement to the IBM ODBC and CLI Driver is available in '+DOWNLOAD_DIR+'   Check for additional dependencies, which may come with their own license agreement(s). Your use of the components of the package and dependencies constitutes your acceptance of their respective license agreements. If you do not accept the terms of any license agreement(s), then delete the relevant component(s) from your device.\n****************************************\n';
 
 		var file_name = url.parse(installerfileURL).pathname.split('/').pop();
@@ -196,6 +198,65 @@ var download_file_httpget = function(file_url) {
 				fs.unlinkSync(WIN_BUILD_FILE);
 			}
 		});
+	}
+	
+	function buildHttpOptions(installerfileURL) {
+	
+		var options = {
+			 host: url.parse(installerfileURL).host,
+			 port: 80,
+			 path: url.parse(installerfileURL).pathname
+			};
+		var proxyStr;
+		
+		var child = exec('npm config get proxy', function(error, stdout, stderr) {
+			//console.log('stdout: ' + stdout.toString().split('\n')[0]);
+			
+			//console.log('stderr: ' + stderr);
+			if (error !== null) {
+				console.log('Error occurred while fetching proxy property from npm configuration -->\n' + error);
+				return options;
+			}
+			
+			proxyStr = stdout.toString().split('\n')[0];
+			if(proxyStr === 'null') {
+				
+				//console.log('Null Returned');
+				child = exec('npm config get https-proxy', function(error, stdout, stderr) {
+					//console.log('stderr: ' + stderr);
+					if (error !== null) {
+						console.log('Error occurred while fetching https-proxy property from npm configuration -->\n' + error);
+						return options;
+					}
+					
+					proxyStr = stdout.toString().split('\n')[0];
+					if(proxyStr !== 'null') {
+						var splitIndex = proxyStr.toString().lastIndexOf(':');
+						if(splitIndex > 0) {
+									
+							options = {
+							 host: url.parse(proxyStr.toString()).hostname,
+							 port: url.parse(proxyStr.toString()).port,
+							 path: url.parse(installerfileURL).href
+							};
+						}
+					}
+				});
+			} else {
+				var splitIndex = proxyStr.toString().lastIndexOf(':');
+				if(splitIndex > 0) {
+							
+					options = {
+					 host: url.parse(proxyStr.toString()).hostname,
+					 port: url.parse(proxyStr.toString()).port,
+					 path: url.parse(installerfileURL).href
+					};
+				}
+
+			}
+		});
+		return options;
+
 	}
 
 };
